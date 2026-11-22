@@ -1,14 +1,27 @@
 <!DOCTYPE html>
-<html lang="pt-BR">
+<html lang="pt-BR" data-theme="dark">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <meta name="description" content="Dashboard pessoal de finanças: entradas, saídas, gráficos e relatórios no navegador, com dados salvos localmente.">
-  <meta name="theme-color" content="#0f0f13">
+  <meta name="description" content="Dashboard pessoal de finanças: carteiras, orçamentos, metas, recorrências e relatórios no navegador, com dados salvos localmente.">
+  <meta name="theme-color" content="#0b0d12">
+  <script>
+    (() => {
+      try {
+        const bruto = localStorage.getItem('finance-tracker-pro-v2');
+        const tema = bruto ? JSON.parse(bruto).tema : 'dark';
+        document.documentElement.dataset.theme = tema === 'light' ? 'light' : 'dark';
+      } catch {
+        document.documentElement.dataset.theme = 'dark';
+      }
+    })();
+  </script>
   <title>FinanceTracker Pro — Dashboard</title>
-  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23c8f564'/%3E%3Ctext x='50' y='68' font-size='52' text-anchor='middle'%3E%F0%9F%92%BC%3C/text%3E%3C/svg%3E">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='22' fill='%23c9f75d'/%3E%3Ctext x='50' y='68' font-size='52' text-anchor='middle'%3E%F0%9F%92%BC%3C/text%3E%3C/svg%3E">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="style.css">
-  <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
@@ -16,10 +29,9 @@
 <a class="skip-link" href="#main">Pular para o conteúdo</a>
 
 <header class="mobile-bar">
-  <button id="menuToggle" class="menu-toggle" type="button" aria-label="Abrir menu" aria-expanded="false" aria-controls="sidebar">
-    <span aria-hidden="true">☰</span>
-  </button>
+  <button id="menuToggle" class="icon-btn" type="button" aria-label="Abrir menu" aria-expanded="false" aria-controls="sidebar">☰</button>
   <span class="mobile-brand">FinanceTracker <strong>Pro</strong></span>
+  <button class="icon-btn theme-toggle" type="button" onclick="App.alternarTema()" aria-label="Alternar tema">◐</button>
 </header>
 
 <div id="sidebarOverlay" class="sidebar-overlay" hidden></div>
@@ -29,11 +41,17 @@
   <!-- ── Sidebar ── -->
   <aside id="sidebar" class="sidebar">
     <div class="brand">
-      <div class="brand-icon">💼</div>
-      <div>
-        <h2>Finance</h2>
-        <p>Dashboard</p>
+      <span class="brand-icon" aria-hidden="true">💼</span>
+      <div class="brand-text">
+        <strong>FinanceTracker</strong>
+        <span>Pro</span>
       </div>
+      <button class="sidebar-close" type="button" aria-label="Fechar menu" onclick="App.fecharMenu()">✕</button>
+    </div>
+
+    <div class="wallet-picker">
+      <label for="carteiraFiltro">Carteira ativa</label>
+      <select id="carteiraFiltro" class="chip-select" onchange="App.trocarCarteira(this.value)"></select>
     </div>
 
     <nav class="nav" aria-label="Seções do aplicativo">
@@ -48,18 +66,30 @@
         <li class="menu-item" data-section="transacoesSection" role="button" tabindex="0">
           <span class="menu-icon" aria-hidden="true">≡</span> Transações
         </li>
+        <li class="menu-item" data-section="orcamentosSection" role="button" tabindex="0">
+          <span class="menu-icon" aria-hidden="true">◐</span> Orçamentos
+        </li>
+        <li class="menu-item" data-section="metasSection" role="button" tabindex="0">
+          <span class="menu-icon" aria-hidden="true">◎</span> Metas
+        </li>
         <li class="menu-item" data-section="relatoriosSection" role="button" tabindex="0">
-          <span class="menu-icon" aria-hidden="true">◎</span> Relatórios
+          <span class="menu-icon" aria-hidden="true">▤</span> Relatórios
+        </li>
+        <li class="menu-item" data-section="ajustesSection" role="button" tabindex="0">
+          <span class="menu-icon" aria-hidden="true">⚙</span> Ajustes
         </li>
       </ul>
     </nav>
 
     <div class="sidebar-footer">
       <div class="util-actions">
-        <button class="btn-util" type="button" onclick="App.exportar()" title="Baixar um JSON com todas as transações">⬇ Exportar</button>
-        <button class="btn-util" type="button" onclick="App.importar()" title="Restaurar transações de um JSON exportado">⬆ Importar</button>
+        <button class="btn-util" type="button" onclick="App.exportar()" title="Baixar um JSON com todos os dados">⬇ Exportar</button>
+        <button class="btn-util" type="button" onclick="App.importar()" title="Restaurar ou mesclar um JSON exportado">⬆ Importar</button>
       </div>
-      <button class="btn-clear" type="button" onclick="App.limparTudo()">🗑 Limpar tudo</button>
+      <button class="theme-row" type="button" onclick="App.alternarTema()">
+        <span id="temaAtual">Tema escuro</span>
+        <span class="switch" aria-hidden="true"><span></span></span>
+      </button>
       <input type="file" id="importFile" accept="application/json,.json" class="hidden">
     </div>
   </aside>
@@ -71,115 +101,151 @@
     <section id="dashboardSection" class="page-section active">
       <header class="page-header">
         <div>
-          <h1>Visão Geral</h1>
+          <p class="eyebrow">Painel</p>
+          <h1>Visão geral</h1>
           <p class="subtitle" id="dataAtual"></p>
         </div>
-        <div class="header-chips">
-          <select id="filtroPeriodo" class="chip-select" onchange="App.atualizarTudo()" aria-label="Filtrar período do dashboard">
-            <option value="todos">Todos os períodos</option>
-            <option value="mes">Este mês</option>
-            <option value="semana">Esta semana</option>
-          </select>
+        <div class="header-actions">
+          <label class="field-inline">
+            <span>Período</span>
+            <select id="filtroPeriodo" class="chip-select" onchange="App.atualizarTudo()">
+              <option value="todos">Todos</option>
+              <option value="mes">Este mês</option>
+              <option value="semana">Últimos 7 dias</option>
+            </select>
+          </label>
         </div>
       </header>
 
       <div class="cards">
-        <div class="card card-entrada">
-          <div class="card-label">Entradas</div>
+        <article class="card card-entrada">
+          <div class="card-top">
+            <span class="card-label">Entradas</span>
+            <span class="card-chip" aria-hidden="true">↑</span>
+          </div>
           <div class="card-value" id="totalEntradas">R$ 0,00</div>
           <div class="card-sub" id="qtdEntradas">0 transações</div>
-        </div>
-        <div class="card card-saida">
-          <div class="card-label">Saídas</div>
+        </article>
+        <article class="card card-saida">
+          <div class="card-top">
+            <span class="card-label">Saídas</span>
+            <span class="card-chip" aria-hidden="true">↓</span>
+          </div>
           <div class="card-value" id="totalSaidas">R$ 0,00</div>
           <div class="card-sub" id="qtdSaidas">0 transações</div>
-        </div>
-        <div class="card card-saldo">
-          <div class="card-label">Saldo</div>
+        </article>
+        <article class="card card-saldo">
+          <div class="card-top">
+            <span class="card-label">Saldo</span>
+            <span class="card-chip" aria-hidden="true">=</span>
+          </div>
           <div class="card-value" id="saldoAtual">R$ 0,00</div>
           <div class="card-sub" id="saldoStatus">—</div>
-        </div>
+        </article>
       </div>
+
+      <div class="budget-strip" id="resumoOrcamento"></div>
 
       <div class="charts-grid">
-        <div class="chart-card chart-main">
-          <div class="chart-card-header">
-            <h3>Fluxo de caixa</h3>
-            <p>Entradas vs. saídas ao longo do tempo</p>
+        <article class="panel chart-main">
+          <div class="panel-header">
+            <div>
+              <h3>Fluxo de caixa</h3>
+              <p>Entradas e saídas por data</p>
+            </div>
+            <span class="legend-hint"><i class="dot dot-in"></i> entradas <i class="dot dot-out"></i> saídas</span>
           </div>
-          <div class="chart-wrap">
-            <canvas id="graficoLinha"></canvas>
+          <div class="chart-wrap"><canvas id="graficoLinha"></canvas></div>
+          <p class="chart-empty hidden" id="linhaVazia">Nenhuma movimentação no período.</p>
+        </article>
+        <article class="panel chart-side">
+          <div class="panel-header">
+            <div>
+              <h3>Por categoria</h3>
+              <p>Distribuição das saídas</p>
+            </div>
           </div>
-        </div>
-        <div class="chart-card chart-side">
-          <div class="chart-card-header">
-            <h3>Por categoria</h3>
-            <p>Distribuição das saídas</p>
-          </div>
-          <div class="chart-wrap chart-wrap-donut">
-            <canvas id="graficoPizza"></canvas>
-          </div>
-        </div>
+          <div class="chart-wrap chart-wrap-donut"><canvas id="graficoPizza"></canvas></div>
+          <p class="chart-empty hidden" id="pizzaVazia">Sem saídas no período.</p>
+        </article>
       </div>
 
-      <div class="recent-card">
-        <div class="recent-header">
-          <h3>Últimas transações</h3>
-          <button class="link-btn" onclick="App.navegarPara('transacoesSection')">Ver todas →</button>
+      <article class="panel">
+        <div class="panel-header">
+          <div>
+            <h3>Últimas transações</h3>
+            <p>Movimentações mais recentes</p>
+          </div>
+          <button class="link-btn" type="button" onclick="App.navegarPara('transacoesSection')">Ver todas →</button>
         </div>
         <ul id="listaRecente" class="transaction-list"></ul>
         <div id="emptyRecente" class="empty-state">
-          <span>📊</span>
-          <p>Nenhuma transação ainda.<br>Vá em <strong>Adicionar</strong> para começar.</p>
+          <span aria-hidden="true">◌</span>
+          <p>Nenhuma transação ainda.<br>Comece em <strong>Adicionar</strong>.</p>
         </div>
-      </div>
+      </article>
     </section>
 
     <!-- Adicionar -->
     <section id="calcularSection" class="page-section">
       <header class="page-header">
         <div>
+          <p class="eyebrow">Lançamento</p>
           <h1>Adicionar</h1>
           <p class="subtitle">Registre uma nova movimentação.</p>
         </div>
       </header>
 
-      <div class="form-card">
+      <form class="panel form-card" id="formTransacao" autocomplete="off">
         <div class="form-group">
           <label for="descricao">Descrição</label>
-          <input type="text" id="descricao" placeholder="Ex: Salário, Mercado, Aluguel…" autocomplete="off">
+          <input type="text" id="descricao" placeholder="Ex: Salário, Mercado, Aluguel…" maxlength="120">
         </div>
 
         <div class="form-row">
           <div class="form-group">
             <label for="valor">Valor (R$)</label>
-            <input type="text" id="valor" placeholder="0,00" inputmode="decimal" autocomplete="off" aria-describedby="valorAjuda">
-            <small id="valorAjuda" class="field-hint">Aceita vírgula ou ponto: 1.234,56 ou 1234.56</small>
+            <input type="text" id="valor" placeholder="0,00" inputmode="decimal" aria-describedby="valorAjuda">
+            <small id="valorAjuda" class="field-hint">Aceita 1.234,56 ou 1234.56</small>
           </div>
           <div class="form-group">
             <label for="categoria">Categoria</label>
-            <select id="categoria">
-              <option value="outros">Outros</option>
-              <option value="alimentacao">🍔 Alimentação</option>
-              <option value="transporte">🚗 Transporte</option>
-              <option value="moradia">🏠 Moradia</option>
-              <option value="saude">💊 Saúde</option>
-              <option value="lazer">🎮 Lazer</option>
-              <option value="educacao">📚 Educação</option>
-              <option value="salario">💼 Salário</option>
-              <option value="investimento">📈 Investimento</option>
-            </select>
+            <select id="categoria"></select>
           </div>
         </div>
 
-        <div class="form-group">
-          <label for="dataTransacao">Data</label>
-          <input type="date" id="dataTransacao">
+        <div class="form-row">
+          <div class="form-group">
+            <label for="carteira">Carteira</label>
+            <select id="carteira"></select>
+          </div>
+          <div class="form-group">
+            <label for="dataTransacao">Data</label>
+            <input type="date" id="dataTransacao">
+          </div>
+        </div>
+
+        <div class="form-row">
+          <div class="form-group">
+            <label for="parcelas">Parcelas</label>
+            <input type="number" id="parcelas" value="1" min="1" max="36" inputmode="numeric" aria-describedby="parcelasAjuda">
+            <small id="parcelasAjuda" class="field-hint">Acima de 1, divide a saída em parcelas mensais.</small>
+          </div>
+          <div class="form-group">
+            <label for="recorrencia">Repetir</label>
+            <select id="recorrencia">
+              <option value="nenhuma">Não repetir</option>
+              <option value="mensal">Todo mês</option>
+              <option value="semanal">Toda semana</option>
+              <option value="anual">Todo ano</option>
+            </select>
+            <small class="field-hint">A próxima ocorrência é lançada automaticamente.</small>
+          </div>
         </div>
 
         <div class="form-group">
           <label for="observacao">Observação (opcional)</label>
-          <input type="text" id="observacao" placeholder="Algum detalhe adicional…">
+          <input type="text" id="observacao" placeholder="Algum detalhe adicional…" maxlength="200">
         </div>
 
         <div class="form-botoes">
@@ -192,15 +258,16 @@
         </div>
 
         <div id="formFeedback" class="form-feedback hidden" role="status" aria-live="polite"></div>
-      </div>
+      </form>
     </section>
 
     <!-- Transações -->
     <section id="transacoesSection" class="page-section">
       <header class="page-header">
         <div>
+          <p class="eyebrow">Histórico</p>
           <h1>Transações</h1>
-          <p class="subtitle">Histórico completo das movimentações.</p>
+          <p class="subtitle" id="contadorTransacoes">0 lançamentos</p>
         </div>
       </header>
 
@@ -211,24 +278,70 @@
           <option value="entrada">Entradas</option>
           <option value="saida">Saídas</option>
         </select>
-        <select id="filtroCategoria" onchange="App.renderizarLista()" class="chip-select" aria-label="Filtrar por categoria">
-          <option value="todos">Todas categorias</option>
-          <option value="alimentacao">Alimentação</option>
-          <option value="transporte">Transporte</option>
-          <option value="moradia">Moradia</option>
-          <option value="saude">Saúde</option>
-          <option value="lazer">Lazer</option>
-          <option value="educacao">Educação</option>
-          <option value="salario">Salário</option>
-          <option value="investimento">Investimento</option>
-          <option value="outros">Outros</option>
-        </select>
+        <select id="filtroCategoria" onchange="App.renderizarLista()" class="chip-select" aria-label="Filtrar por categoria"></select>
       </div>
 
-      <ul id="lista" class="transaction-list transaction-list-full"></ul>
+      <ul id="lista" class="transaction-list transaction-list-full panel panel-list"></ul>
       <div id="emptyLista" class="empty-state">
-        <span>🗂</span>
+        <span aria-hidden="true">◌</span>
         <p>Nenhuma transação encontrada.</p>
+      </div>
+    </section>
+
+    <!-- Orçamentos -->
+    <section id="orcamentosSection" class="page-section">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">Planejamento</p>
+          <h1>Orçamentos</h1>
+          <p class="subtitle" id="mesOrcamento">—</p>
+        </div>
+        <div class="header-actions">
+          <span class="pill" id="orcamentoTotal">R$ 0,00 de R$ 0,00</span>
+        </div>
+      </header>
+
+      <article class="panel">
+        <div class="panel-header">
+          <div>
+            <h3>Limite mensal por categoria</h3>
+            <p>O consumo considera o mês atual e a carteira ativa.</p>
+          </div>
+        </div>
+        <ul id="listaOrcamentos" class="budget-list"></ul>
+      </article>
+    </section>
+
+    <!-- Metas -->
+    <section id="metasSection" class="page-section">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">Objetivos</p>
+          <h1>Metas</h1>
+          <p class="subtitle">Acompanhe quanto falta para cada objetivo.</p>
+        </div>
+      </header>
+
+      <form class="panel form-inline" id="formMeta" onsubmit="App.adicionarMeta(event)">
+        <div class="form-group">
+          <label for="nomeMeta">Nome da meta</label>
+          <input type="text" id="nomeMeta" placeholder="Ex: Reserva de emergência" maxlength="60">
+        </div>
+        <div class="form-group">
+          <label for="alvoMeta">Valor alvo (R$)</label>
+          <input type="text" id="alvoMeta" placeholder="0,00" inputmode="decimal">
+        </div>
+        <div class="form-group">
+          <label for="prazoMeta">Prazo (opcional)</label>
+          <input type="date" id="prazoMeta">
+        </div>
+        <button class="btn btn-accent" type="submit">Criar meta</button>
+      </form>
+
+      <div id="listaMetas" class="goals-grid"></div>
+      <div id="emptyMetas" class="empty-state">
+        <span aria-hidden="true">◎</span>
+        <p>Nenhuma meta criada.<br>Defina um objetivo acima.</p>
       </div>
     </section>
 
@@ -236,31 +349,116 @@
     <section id="relatoriosSection" class="page-section">
       <header class="page-header">
         <div>
+          <p class="eyebrow">Análise</p>
           <h1>Relatórios</h1>
-          <p class="subtitle">Análise detalhada das suas finanças.</p>
+          <p class="subtitle">Histórico completo da carteira ativa.</p>
         </div>
       </header>
 
       <div class="relatorio-grid">
-        <div class="relatorio-card">
-          <h3>Resumo</h3>
+        <article class="panel">
+          <div class="panel-header"><h3>Resumo</h3></div>
           <ul id="relatorioResumo" class="relatorio-list"></ul>
-        </div>
-        <div class="relatorio-card">
-          <h3>Top gastos por categoria</h3>
+        </article>
+        <article class="panel">
+          <div class="panel-header"><h3>Top gastos por categoria</h3></div>
           <ul id="relatorioCategorias" class="relatorio-list"></ul>
-        </div>
-        <div class="relatorio-card relatorio-card-full">
-          <h3>Maiores despesas</h3>
+        </article>
+        <article class="panel panel-wide">
+          <div class="panel-header"><h3>Maiores despesas</h3></div>
           <ul id="relatorioMaiores" class="relatorio-list"></ul>
+        </article>
+        <article class="panel panel-wide">
+          <div class="panel-header"><h3>Por carteira</h3></div>
+          <ul id="relatorioCarteiras" class="relatorio-list"></ul>
+        </article>
+      </div>
+    </section>
+
+    <!-- Ajustes -->
+    <section id="ajustesSection" class="page-section">
+      <header class="page-header">
+        <div>
+          <p class="eyebrow">Configuração</p>
+          <h1>Ajustes</h1>
+          <p class="subtitle">Carteiras, categorias, recorrências e dados.</p>
         </div>
+      </header>
+
+      <div class="settings-grid">
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <h3>Carteiras</h3>
+              <p>Separe contas, bancos ou dinheiro em espécie.</p>
+            </div>
+          </div>
+          <ul id="listaCarteiras" class="settings-list"></ul>
+          <form class="form-inline compact" id="formCarteira" onsubmit="App.adicionarCarteira(event)">
+            <input type="text" id="nomeCarteira" placeholder="Nome da carteira" maxlength="40" aria-label="Nome da nova carteira">
+            <input type="color" id="corCarteira" value="#c9f75d" aria-label="Cor da nova carteira">
+            <button class="btn btn-ghost" type="submit">Adicionar</button>
+          </form>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <h3>Categorias</h3>
+              <p>Renomeie, troque o ícone ou crie novas.</p>
+            </div>
+          </div>
+          <ul id="listaCategorias" class="settings-list"></ul>
+          <form class="form-inline compact" id="formCategoria" onsubmit="App.adicionarCategoria(event)">
+            <input type="text" id="emojiCategoria" placeholder="🍰" maxlength="4" aria-label="Ícone da nova categoria" class="input-emoji">
+            <input type="text" id="nomeCategoria" placeholder="Nome da categoria" maxlength="30" aria-label="Nome da nova categoria">
+            <button class="btn btn-ghost" type="submit">Adicionar</button>
+          </form>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <h3>Recorrências</h3>
+              <p>Lançamentos repetidos automaticamente.</p>
+            </div>
+          </div>
+          <ul id="listaRecorrencias" class="settings-list"></ul>
+          <div id="emptyRecorrencias" class="empty-state compact">
+            <p>Nenhuma recorrência ativa.</p>
+          </div>
+        </article>
+
+        <article class="panel">
+          <div class="panel-header">
+            <div>
+              <h3>Dados</h3>
+              <p>Backup, restauração e limpeza.</p>
+            </div>
+          </div>
+          <div class="data-actions">
+            <button class="btn btn-ghost" type="button" onclick="App.exportar()">Exportar JSON</button>
+            <button class="btn btn-ghost" type="button" onclick="App.importar()">Importar JSON</button>
+            <button class="btn btn-danger" type="button" onclick="App.limparTudo()">Apagar tudo</button>
+          </div>
+          <p class="field-hint">Os dados ficam apenas neste navegador. O JSON serve como backup e para migrar de dispositivo.</p>
+        </article>
       </div>
     </section>
 
   </main>
 </div>
 
-<!-- Toast -->
+<dialog id="importDialog" class="dialog" aria-labelledby="importTitulo">
+  <h3 id="importTitulo">Importar dados</h3>
+  <p id="importResumo"></p>
+  <div class="dialog-actions">
+    <button class="btn btn-ghost" type="button" onclick="App.fecharImportacao('cancelar')">Cancelar</button>
+    <button class="btn btn-ghost" type="button" onclick="App.fecharImportacao('mesclar')">Mesclar</button>
+    <button class="btn btn-accent" type="button" onclick="App.fecharImportacao('substituir')">Substituir</button>
+  </div>
+</dialog>
+
 <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <script src="script.js"></script>
