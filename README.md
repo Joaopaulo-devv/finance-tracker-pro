@@ -12,6 +12,10 @@ Registro de entradas e saídas, saldo em tempo real, gráficos e relatórios —
 
 ![Prévia do dashboard](preview.png)
 
+<p align="center">
+  <img src="preview-mobile.png" alt="Dashboard no celular, com menu lateral" width="260">
+</p>
+
 ## Funcionalidades
 
 **Dashboard**
@@ -19,16 +23,17 @@ Registro de entradas e saídas, saldo em tempo real, gráficos e relatórios —
 - Filtro de período: todos os períodos, este mês ou últimos sete dias.
 - Gráfico de linha com o fluxo de caixa (entradas vs. saídas) agrupado por data.
 - Gráfico de rosca com a distribuição das saídas por categoria.
-- Lista das cinco últimas transações cadastradas.
+- Lista das cinco transações mais recentes, ordenadas por data.
 
 **Adicionar**
 - Descrição, valor, categoria, data (padrão: hoje) e observação opcional.
+- Valor aceita vírgula ou ponto: `1.234,56`, `1234,56` e `1234.56` são interpretados igual.
 - Botões separados para registrar entrada ou saída.
 - Validação de descrição e valor, com mensagem de erro no formulário.
 - Confirmação por toast e limpeza automática dos campos após o registro.
 
 **Transações**
-- Histórico completo em ordem inversa de cadastro (o último registro aparece no topo).
+- Histórico completo ordenado por data, do mais recente para o mais antigo.
 - Busca por descrição e filtros por tipo (entrada/saída) e por categoria.
 - Exclusão individual de cada transação.
 
@@ -38,10 +43,16 @@ Registro de entradas e saídas, saldo em tempo real, gráficos e relatórios —
 - Ranking de gastos por categoria, com barras proporcionais.
 - As cinco maiores despesas registradas.
 
+**Backup e restauração**
+- Exportação de todo o histórico em JSON, com data no nome do arquivo.
+- Importação do JSON exportado, com validação de cada transação e confirmação antes de substituir os dados atuais.
+
 **Outros**
 - Persistência automática no `localStorage`: os dados sobrevivem ao recarregamento da página.
+- Layout responsivo com menu lateral em drawer, botão de abrir/fechar, overlay e fechamento por `Esc`.
+- Navegação por teclado nas seções e link "Pular para o conteúdo".
 - Botão "Limpar tudo" com confirmação antes de apagar o histórico.
-- Tema escuro, tipografia DM Serif Display + DM Sans e layout responsivo para telas menores.
+- Tema escuro, tipografia DM Serif Display + DM Sans e números tabulares nos valores.
 
 ## Stack
 
@@ -60,13 +71,14 @@ Sem etapa de build e sem dependências instaladas localmente: os dois recursos e
 
 ```text
 .
-├── index.html   # marcação das quatro seções (Dashboard, Adicionar, Transações, Relatórios)
-├── style.css    # design tokens, layout, componentes, gráficos e responsividade
-├── script.js    # estado, persistência, cálculos, gráficos, filtros e relatórios
-└── preview.png  # captura do dashboard usada neste README
+├── index.html          # marcação das quatro seções e do menu mobile
+├── style.css           # design tokens, layout, componentes, drawer e responsividade
+├── script.js           # estado, persistência, cálculos, gráficos, filtros e backup
+├── preview.png         # captura do dashboard usada neste README
+└── preview-mobile.png  # captura da versão mobile
 ```
 
-O `script.js` expõe apenas o necessário para os atributos `onclick` do HTML: `adicionar`, `excluir`, `limparTudo`, `atualizarTudo`, `renderizarLista` e `navegarPara`. O restante — estado, cálculos e renderização — fica encapsulado na IIFE.
+O `script.js` expõe apenas o necessário para os atributos `onclick` do HTML: `adicionar`, `excluir`, `limparTudo`, `atualizarTudo`, `renderizarLista`, `navegarPara`, `exportar` e `importar`. O restante — estado, cálculos e renderização — fica encapsulado na IIFE.
 
 ## Como executar
 
@@ -83,18 +95,41 @@ O `localStorage` é vinculado à origem: abrir via `file://` e via `http://local
 
 Cada transação é um objeto com `id`, `tipo` (`entrada` ou `saida`), `descricao`, `valor` numérico, `categoria`, `data` no formato ISO (`AAAA-MM-DD`) e `observacao`. O array completo é serializado em JSON na chave `finance_transacoes` do `localStorage`, regravado a cada inclusão, exclusão ou limpeza.
 
-Não há servidor, conta de usuário, telemetria ou requisição com os seus dados. As únicas conexões externas são o Chart.js e as fontes. Limpar os dados do site no navegador apaga o histórico.
+A exportação gera um arquivo `finance-tracker-AAAA-MM-DD.json` com o formato:
+
+```json
+{
+  "app": "finance-tracker-pro",
+  "versao": 1,
+  "exportadoEm": "2026-11-22T20:00:00.000Z",
+  "transacoes": [
+    {
+      "id": "1732300000000",
+      "tipo": "entrada",
+      "descricao": "Salário",
+      "valor": 5200,
+      "categoria": "salario",
+      "data": "2026-11-05",
+      "observacao": "Pagamento mensal"
+    }
+  ]
+}
+```
+
+A importação aceita esse arquivo ou um array direto de transações. Cada item passa por validação; ids são regenerados e campos desconhecidos são descartados. A operação substitui todo o histórico atual, mediante confirmação.
+
+Textos digitados são escapados antes de entrar no DOM, e o valor é validado como número positivo. Não há servidor, conta de usuário, telemetria ou requisição com os seus dados — as únicas conexões externas são o Chart.js e as fontes. Limpar os dados do site no navegador apaga o histórico.
 
 ## Limitações e próximos passos
 
 - Uma única moeda (real brasileiro) e uma única carteira; não há contas separadas.
-- Sem exportação ou importação de dados (CSV/JSON) e sem backup.
+- A importação substitui o histórico inteiro; ainda não há mesclagem entre arquivos.
 - Sem transações recorrentes, orçamentos, metas ou parcelamento.
+- Categorias são fixas no código; ainda não há editor de categorias.
 - Os dados ficam no navegador e no dispositivo: não sincronizam entre máquinas.
-- Abaixo de 900px a sidebar sai da tela e ainda não existe um botão para reabri-la.
 - Sem autenticação — o projeto é de uso pessoal e local.
 
-Evoluções naturais: menu mobile, exportação/importação em JSON, filtros de data personalizados, categorias editáveis e, se o projeto crescer, um backend com autenticação.
+Evoluções naturais: mesclagem na importação, filtros de data personalizados, categorias editáveis, transações recorrentes e, se o projeto crescer, um backend com autenticação.
 
 ## Autor
 

@@ -3,17 +3,31 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Finance Dashboard</title>
+  <meta name="description" content="Dashboard pessoal de finanças: entradas, saídas, gráficos e relatórios no navegador, com dados salvos localmente.">
+  <meta name="theme-color" content="#0f0f13">
+  <title>FinanceTracker Pro — Dashboard</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Crect width='100' height='100' rx='20' fill='%23c8f564'/%3E%3Ctext x='50' y='68' font-size='52' text-anchor='middle'%3E%F0%9F%92%BC%3C/text%3E%3C/svg%3E">
   <link rel="stylesheet" href="style.css">
   <link href="https://fonts.googleapis.com/css2?family=DM+Serif+Display:ital@0;1&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 <body>
 
+<a class="skip-link" href="#main">Pular para o conteúdo</a>
+
+<header class="mobile-bar">
+  <button id="menuToggle" class="menu-toggle" type="button" aria-label="Abrir menu" aria-expanded="false" aria-controls="sidebar">
+    <span aria-hidden="true">☰</span>
+  </button>
+  <span class="mobile-brand">FinanceTracker <strong>Pro</strong></span>
+</header>
+
+<div id="sidebarOverlay" class="sidebar-overlay" hidden></div>
+
 <div class="app">
 
   <!-- ── Sidebar ── -->
-  <aside class="sidebar">
+  <aside id="sidebar" class="sidebar">
     <div class="brand">
       <div class="brand-icon">💼</div>
       <div>
@@ -22,31 +36,36 @@
       </div>
     </div>
 
-    <nav class="nav">
+    <nav class="nav" aria-label="Seções do aplicativo">
       <span class="nav-label">Menu</span>
       <ul class="sidebar-menu">
-        <li class="menu-item active" data-section="dashboardSection">
-          <span class="menu-icon">◈</span> Dashboard
+        <li class="menu-item active" data-section="dashboardSection" role="button" tabindex="0" aria-current="page">
+          <span class="menu-icon" aria-hidden="true">◈</span> Dashboard
         </li>
-        <li class="menu-item" data-section="calcularSection">
-          <span class="menu-icon">＋</span> Adicionar
+        <li class="menu-item" data-section="calcularSection" role="button" tabindex="0">
+          <span class="menu-icon" aria-hidden="true">＋</span> Adicionar
         </li>
-        <li class="menu-item" data-section="transacoesSection">
-          <span class="menu-icon">≡</span> Transações
+        <li class="menu-item" data-section="transacoesSection" role="button" tabindex="0">
+          <span class="menu-icon" aria-hidden="true">≡</span> Transações
         </li>
-        <li class="menu-item" data-section="relatoriosSection">
-          <span class="menu-icon">◎</span> Relatórios
+        <li class="menu-item" data-section="relatoriosSection" role="button" tabindex="0">
+          <span class="menu-icon" aria-hidden="true">◎</span> Relatórios
         </li>
       </ul>
     </nav>
 
     <div class="sidebar-footer">
-      <button class="btn-clear" onclick="App.limparTudo()">🗑 Limpar tudo</button>
+      <div class="util-actions">
+        <button class="btn-util" type="button" onclick="App.exportar()" title="Baixar um JSON com todas as transações">⬇ Exportar</button>
+        <button class="btn-util" type="button" onclick="App.importar()" title="Restaurar transações de um JSON exportado">⬆ Importar</button>
+      </div>
+      <button class="btn-clear" type="button" onclick="App.limparTudo()">🗑 Limpar tudo</button>
+      <input type="file" id="importFile" accept="application/json,.json" class="hidden">
     </div>
   </aside>
 
   <!-- ── Main ── -->
-  <main class="main">
+  <main class="main" id="main">
 
     <!-- Dashboard -->
     <section id="dashboardSection" class="page-section active">
@@ -56,7 +75,7 @@
           <p class="subtitle" id="dataAtual"></p>
         </div>
         <div class="header-chips">
-          <select id="filtroPeriodo" class="chip-select" onchange="App.atualizarTudo()">
+          <select id="filtroPeriodo" class="chip-select" onchange="App.atualizarTudo()" aria-label="Filtrar período do dashboard">
             <option value="todos">Todos os períodos</option>
             <option value="mes">Este mês</option>
             <option value="semana">Esta semana</option>
@@ -134,7 +153,8 @@
         <div class="form-row">
           <div class="form-group">
             <label for="valor">Valor (R$)</label>
-            <input type="number" id="valor" placeholder="0,00" min="0" step="0.01">
+            <input type="text" id="valor" placeholder="0,00" inputmode="decimal" autocomplete="off" aria-describedby="valorAjuda">
+            <small id="valorAjuda" class="field-hint">Aceita vírgula ou ponto: 1.234,56 ou 1234.56</small>
           </div>
           <div class="form-group">
             <label for="categoria">Categoria</label>
@@ -163,15 +183,15 @@
         </div>
 
         <div class="form-botoes">
-          <button class="btn btn-entrada" onclick="App.adicionar('entrada')">
-            <span>＋</span> Registrar entrada
+          <button class="btn btn-entrada" type="button" onclick="App.adicionar('entrada')">
+            <span aria-hidden="true">＋</span> Registrar entrada
           </button>
-          <button class="btn btn-saida" onclick="App.adicionar('saida')">
-            <span>−</span> Registrar saída
+          <button class="btn btn-saida" type="button" onclick="App.adicionar('saida')">
+            <span aria-hidden="true">−</span> Registrar saída
           </button>
         </div>
 
-        <div id="formFeedback" class="form-feedback hidden"></div>
+        <div id="formFeedback" class="form-feedback hidden" role="status" aria-live="polite"></div>
       </div>
     </section>
 
@@ -185,13 +205,13 @@
       </header>
 
       <div class="filtros-bar">
-        <input type="text" id="busca" placeholder="🔍 Buscar por descrição…" oninput="App.renderizarLista()" class="input-busca">
-        <select id="filtroTipo" onchange="App.renderizarLista()" class="chip-select">
+        <input type="text" id="busca" placeholder="🔍 Buscar por descrição…" oninput="App.renderizarLista()" class="input-busca" aria-label="Buscar transações por descrição">
+        <select id="filtroTipo" onchange="App.renderizarLista()" class="chip-select" aria-label="Filtrar por tipo">
           <option value="todos">Todos</option>
           <option value="entrada">Entradas</option>
           <option value="saida">Saídas</option>
         </select>
-        <select id="filtroCategoria" onchange="App.renderizarLista()" class="chip-select">
+        <select id="filtroCategoria" onchange="App.renderizarLista()" class="chip-select" aria-label="Filtrar por categoria">
           <option value="todos">Todas categorias</option>
           <option value="alimentacao">Alimentação</option>
           <option value="transporte">Transporte</option>
@@ -241,7 +261,7 @@
 </div>
 
 <!-- Toast -->
-<div id="toast" class="toast"></div>
+<div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
 
 <script src="script.js"></script>
 </body>

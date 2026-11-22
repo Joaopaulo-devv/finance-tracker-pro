@@ -1,10 +1,11 @@
 /* ═══════════════════════════════════════════════
    Finance Dashboard — script.js
-   ─ Navegação entre seções
+   ─ Navegação entre seções (desktop e mobile)
    ─ Adicionar / excluir transações
-   ─ Filtros e busca
-   ─ Gráficos (linha + pizza)
+   ─ Filtros, busca e ordenação por data
+   ─ Gráficos (linha + rosca)
    ─ Relatórios dinâmicos
+   ─ Exportação e importação em JSON
    ─ Persistência via localStorage
    ═══════════════════════════════════════════════ */
 
@@ -16,16 +17,38 @@ const App = (() => {
   let graficoPizza = null;
 
   /* ── Utilitários ── */
-  const fmt = (v) =>
-    v.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+  const esc = (valor) => String(valor ?? '').replace(/[&<>"']/g, (c) => ({
+    '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;',
+  }[c]));
+
+  const fmt = (v) => Number(v).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
 
   const fmtData = (iso) => {
-    if (!iso) return '';
-    const [a, m, d] = iso.split('-');
-    return `${d}/${m}/${a}`;
+    const partes = /^(\d{4})-(\d{2})-(\d{2})$/.exec(iso || '');
+    return partes ? `${partes[3]}/${partes[2]}/${partes[1]}` : '';
   };
 
   const hoje = () => new Date().toISOString().split('T')[0];
+
+  /* Aceita "1.234,56", "1234,56", "1234.56" e "R$ 1.234,56". */
+  const parseValor = (bruto) => {
+    let s = String(bruto ?? '').replace(/[R$\s]/g, '');
+    if (!s) return NaN;
+    const ultimaVirgula = s.lastIndexOf(',');
+    const ultimoPonto = s.lastIndexOf('.');
+    if (ultimaVirgula > ultimoPonto) {
+      s = s.replace(/\./g, '').replace(',', '.');
+    } else {
+      s = s.replace(/,/g, '');
+    }
+    const n = Number(s);
+    return Number.isFinite(n) ? n : NaN;
+  };
+
+  const ordenarPorData = (lista) => [...lista].sort((a, b) => {
+    const porData = String(b.data || '').localeCompare(String(a.data || ''));
+    return porData !== 0 ? porData : String(b.id || '').localeCompare(String(a.id || ''));
+  });
 
   const categoriaEmoji = {
     alimentacao: '🍔',
@@ -73,15 +96,36 @@ const App = (() => {
     toastTimer = setTimeout(() => el.classList.remove('show'), 2500);
   };
 
+  /* ── Menu mobile ── */
+  const definirMenu = (aberto) => {
+    const sidebar = document.getElementById('sidebar');
+    const overlay = document.getElementById('sidebarOverlay');
+    const toggle = document.getElementById('menuToggle');
+    if (!sidebar || !overlay || !toggle) return;
+
+    sidebar.classList.toggle('open', aberto);
+    overlay.hidden = !aberto;
+    toggle.setAttribute('aria-expanded', String(aberto));
+    toggle.setAttribute('aria-label', aberto ? 'Fechar menu' : 'Abrir menu');
+    document.body.classList.toggle('menu-open', aberto);
+  };
+
   /* ── Navegação ── */
   const navegarPara = (sectionId) => {
     document.querySelectorAll('.page-section').forEach(s => s.classList.remove('active'));
-    document.querySelectorAll('.menu-item').forEach(m => m.classList.remove('active'));
     document.getElementById(sectionId)?.classList.add('active');
-    document.querySelector(`[data-section="${sectionId}"]`)?.classList.add('active');
+
+    document.querySelectorAll('.menu-item').forEach(m => {
+      const ativo = m.dataset.section === sectionId;
+      m.classList.toggle('active', ativo);
+      if (ativo) m.setAttribute('aria-current', 'page');
+      else m.removeAttribute('aria-current');
+    });
 
     // atualiza relatórios ao entrar na seção
     if (sectionId === 'relatoriosSection') renderizarRelatorios();
+
+    definirMenu(false);
   };
 
   /* ── Filtro de período ── */
@@ -185,7 +229,13 @@ const App = (() => {
         maintainAspectRatio: false,
         plugins: {
           legend: { labels: { color: '#a09eb0', font: { family: 'DM Sans' } } },
-          tooltip: { mode: 'index', intersect: false },
+          tooltip: {
+            mode: 'index',
+            intersect: false,
+            callbacks: {
+              label: (ctx) => ` ${ctx.dataset.label}: ${fmt(ctx.parsed.y)}`,
+            },
+          },
         },
         scales: {
           x: { ticks: { color: '#7a7888' }, grid: { color: 'rgba(255,255,255,0.04)' } },
@@ -263,7 +313,7 @@ const App = (() => {
     const tipo     = document.getElementById('filtroTipo')?.value || 'todos';
     const categ    = document.getElementById('filtroCategoria')?.value || 'todos';
 
-    let filtrada = [...transacoes].reverse(); // mais recentes primeiro
+    let filtrada = ordenarPorData(transacoes);
 
     if (tipo !== 'todos')  filtrada = filtrada.filter(t => t.tipo === tipo);
     if (categ !== 'todos') filtrada = filtrada.filter(t => t.categoria === categ);
@@ -287,7 +337,7 @@ const App = (() => {
   const renderizarRecente = () => {
     const lista = document.getElementById('listaRecente');
     const empty = document.getElementById('emptyRecente');
-    const recentes = [...transacoes].reverse().slice(0, 5);
+    const recentes = ordenarPorData(transacoes).slice(0, 5);
 
     lista.innerHTML = '';
 
@@ -307,17 +357,17 @@ const App = (() => {
 
     const emoji = categoriaEmoji[t.categoria] || '📦';
     const sinal = t.tipo === 'entrada' ? '+' : '−';
-    const obs   = t.observacao ? ` · ${t.observacao}` : '';
+    const obs   = t.observacao ? ` · ${esc(t.observacao)}` : '';
     const cat   = categoriaLabel[t.categoria] || 'Outros';
 
     li.innerHTML = `
-      <div class="tx-icon ${t.tipo}">${emoji}</div>
+      <div class="tx-icon ${t.tipo}" aria-hidden="true">${emoji}</div>
       <div class="tx-info">
-        <div class="tx-desc">${t.descricao}</div>
+        <div class="tx-desc">${esc(t.descricao)}</div>
         <div class="tx-meta">${cat}${t.data ? ' · ' + fmtData(t.data) : ''}${obs}</div>
       </div>
       <div class="tx-valor ${t.tipo}">${sinal} ${fmt(t.valor)}</div>
-      ${comDelete ? `<button class="tx-delete" title="Excluir" onclick="App.excluir('${t.id}')">✕</button>` : ''}
+      ${comDelete ? `<button class="tx-delete" type="button" title="Excluir" aria-label="Excluir transação" onclick="App.excluir('${esc(t.id)}')">✕</button>` : ''}
     `;
 
     return li;
@@ -333,7 +383,7 @@ const App = (() => {
     const feedback = document.getElementById('formFeedback');
 
     const descricao  = descEl.value.trim();
-    const valor      = parseFloat(valorEl.value);
+    const valor      = parseValor(valorEl.value);
     const categoria  = catEl.value;
     const data       = dataEl.value || hoje();
     const observacao = obsEl.value.trim();
@@ -345,7 +395,7 @@ const App = (() => {
       return;
     }
 
-    if (!valor || isNaN(valor) || valor <= 0) {
+    if (!Number.isFinite(valor) || valor <= 0) {
       mostrarFeedback(feedback, 'Por favor, insira um valor válido maior que zero.', 'error');
       valorEl.focus();
       return;
@@ -404,6 +454,85 @@ const App = (() => {
     atualizarTudo();
     toast('🗑 Todos os dados foram apagados.');
   };
+
+  /* ── Exportar / importar ── */
+  const exportar = () => {
+    if (transacoes.length === 0) {
+      toast('Nada para exportar ainda.');
+      return;
+    }
+
+    const conteudo = {
+      app: 'finance-tracker-pro',
+      versao: 1,
+      exportadoEm: new Date().toISOString(),
+      transacoes,
+    };
+    const blob = new Blob([JSON.stringify(conteudo, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `finance-tracker-${hoje()}.json`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+
+    const rotulo = transacoes.length === 1 ? 'transação exportada' : 'transações exportadas';
+    toast(`⬇ ${transacoes.length} ${rotulo}.`);
+  };
+
+  const normalizarImportada = (t, indice) => {
+    if (!t || typeof t !== 'object') return null;
+    if (t.tipo !== 'entrada' && t.tipo !== 'saida') return null;
+    if (typeof t.descricao !== 'string' || !t.descricao.trim()) return null;
+
+    const valor = Number(t.valor);
+    if (!Number.isFinite(valor) || valor <= 0) return null;
+
+    return {
+      id: `imp-${Date.now()}-${indice}`,
+      tipo: t.tipo,
+      descricao: t.descricao.trim().slice(0, 120),
+      valor,
+      categoria: categoriaLabel[t.categoria] ? t.categoria : 'outros',
+      data: /^\d{4}-\d{2}-\d{2}$/.test(t.data || '') ? t.data : hoje(),
+      observacao: typeof t.observacao === 'string' ? t.observacao.trim().slice(0, 200) : '',
+    };
+  };
+
+  const importarArquivo = (arquivo) => {
+    if (!arquivo) return;
+
+    const leitor = new FileReader();
+    leitor.onload = () => {
+      try {
+        const dados = JSON.parse(String(leitor.result));
+        const lista = Array.isArray(dados) ? dados : dados?.transacoes;
+        if (!Array.isArray(lista)) throw new Error('formato');
+
+        const validas = lista.map(normalizarImportada).filter(Boolean);
+        if (validas.length === 0) throw new Error('vazio');
+
+        const mensagem = `Importar ${validas.length} transações? Isso substitui as ${transacoes.length} atuais.`;
+        if (!window.confirm(mensagem)) return;
+
+        transacoes = validas;
+        salvar();
+        atualizarTudo();
+        toast(`⬆ ${validas.length} transações importadas.`);
+      } catch {
+        toast('❌ Arquivo inválido. Use um JSON exportado pelo app.');
+      } finally {
+        const input = document.getElementById('importFile');
+        if (input) input.value = '';
+      }
+    };
+    leitor.onerror = () => toast('❌ Não foi possível ler o arquivo.');
+    leitor.readAsText(arquivo);
+  };
+
+  const importar = () => document.getElementById('importFile')?.click();
 
   /* ── Relatórios ── */
   const renderizarRelatorios = () => {
@@ -482,7 +611,7 @@ const App = (() => {
       maioresEl.innerHTML = maiores.map((t, i) => `
         <li class="relatorio-item">
           <span style="color:var(--muted); font-size:13px; min-width:20px;">#${i+1}</span>
-          <span class="relatorio-item-label">${categoriaEmoji[t.categoria] || '📦'} ${t.descricao}</span>
+          <span class="relatorio-item-label">${categoriaEmoji[t.categoria] || '📦'} ${esc(t.descricao)}</span>
           <span class="relatorio-item-value negativo">${fmt(t.valor)}</span>
         </li>
       `).join('');
@@ -496,6 +625,7 @@ const App = (() => {
     atualizarGraficoPizza();
     renderizarRecente();
     renderizarLista();
+    renderizarRelatorios();
   };
 
   /* ── Init ── */
@@ -520,7 +650,37 @@ const App = (() => {
         const section = item.dataset.section;
         if (section) navegarPara(section);
       });
+      item.addEventListener('keydown', (event) => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          item.click();
+        }
+      });
     });
+
+    // menu mobile
+    document.getElementById('menuToggle')?.addEventListener('click', () => {
+      const aberto = document.getElementById('sidebar')?.classList.contains('open');
+      definirMenu(!aberto);
+    });
+    document.getElementById('sidebarOverlay')?.addEventListener('click', () => definirMenu(false));
+    document.addEventListener('keydown', (event) => {
+      if (event.key === 'Escape') definirMenu(false);
+    });
+    window.addEventListener('resize', () => {
+      if (window.innerWidth > 900) definirMenu(false);
+    });
+
+    // importação
+    document.getElementById('importFile')?.addEventListener('change', (event) => {
+      importarArquivo(event.target.files?.[0]);
+    });
+
+    // tipografia dos gráficos
+    if (window.Chart) {
+      Chart.defaults.font.family = "'DM Sans', system-ui, sans-serif";
+      Chart.defaults.color = '#7a7888';
+    }
 
     atualizarTudo();
   };
@@ -528,6 +688,9 @@ const App = (() => {
   document.addEventListener('DOMContentLoaded', init);
 
   // expor publicamente
-  return { adicionar, excluir, limparTudo, atualizarTudo, renderizarLista, navegarPara };
+  return {
+    adicionar, excluir, limparTudo, atualizarTudo, renderizarLista,
+    navegarPara, exportar, importar,
+  };
 
 })();
