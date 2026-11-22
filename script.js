@@ -123,8 +123,8 @@ const App = (() => {
     const qtdE = filtrada.filter(t => t.tipo === 'entrada').length;
     const qtdS = filtrada.filter(t => t.tipo === 'saida').length;
 
-    document.getElementById('qtdEntradas').textContent = `${qtdE} transação${qtdE !== 1 ? 'ões' : ''}`;
-    document.getElementById('qtdSaidas').textContent   = `${qtdS} transação${qtdS !== 1 ? 'ões' : ''}`;
+    document.getElementById('qtdEntradas').textContent = `${qtdE} ${qtdE === 1 ? 'transação' : 'transações'}`;
+    document.getElementById('qtdSaidas').textContent   = `${qtdS} ${qtdS === 1 ? 'transação' : 'transações'}`;
 
     const statusEl = document.getElementById('saldoStatus');
     if (saldo > 0)      { statusEl.textContent = '✅ Positivo'; statusEl.style.color = 'var(--entrada)'; }
